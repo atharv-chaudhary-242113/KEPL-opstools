@@ -1,27 +1,29 @@
 # KEPL OpsTools
 
-A unified, high-performance, and type-safe Python CLI package for engineering operations. `kepl_opstools` streamlines the processing, splitting, and consolidation of complex Bill of Materials (BoM) Excel workbooks into single, cleanly formatted outputs.
+A unified toolkit for BoM consolidation and panel classification.
 
-Built with modern enterprise-grade Python tooling to ensure speed, stability, and ease of use.
+KEPL OpsTools is a high-performance, type-safe Python CLI package for engineering operations. It streamlines the processing, splitting, and consolidation of complex Bill of Materials (BoM) Excel workbooks into single, cleanly formatted outputs. The project is built with modern enterprise-grade Python tooling to ensure speed, stability, and ease of use.
 
 ## Features
 
 * **Unified Architecture**: Consolidates the BoM Splitter (Panel Classifier) and BoM Merger (Consolidator) into a single, cohesive toolset.
 * **Professional CLI**: Run complex data pipelines instantly using standard terminal flags (`--split`, `--merge`), or fall back to an interactive wizard.
-* **Enterprise Type Safety**: Powered by Meta's **Pyrefly** (Strict Mode) to guarantee zero implicit `Any` types and robust, crash-free data parsing.
-* **Blazing Fast**: Managed entirely via **uv** and built on **Hatchling** for instant dependency resolution and millisecond build times.
+* **Enterprise Type Safety**: Powered by Meta's Pyrefly in Strict Mode to guarantee zero implicit `Any` types and robust, crash-free data parsing.
+* **Blazing Fast**: Managed entirely via `uv` and built on Hatchling for instant dependency resolution and millisecond build times.
 * **Smart Excel Parsing**: Dynamically detects column headers, bypasses `MergedCell` reading errors, and standardizes numeric types directly from OpenPyXL.
 
 ---
 
-## 🚀 Installation
+## Installation
 
 Because this repository uses `pyproject.toml` and modern build tools, you can install the CLI command globally in your virtual environment.
 
 ### Option 1: Direct Cloud Install (For End-Users)
+
 Users with access to the GitHub repository can install the tool directly without downloading the source code manually:
+
 ```bash
-uv pip install git+[https://github.com/atharv-chaudhary-242113/KEPL-opstools.git](https://github.com/atharv-chaudhary-242113/KEPL-opstools.git)
+uv pip install git+https://github.com/atharv-chaudhary-242113/KEPL-opstools.git
 
 ```
 
@@ -30,7 +32,7 @@ uv pip install git+[https://github.com/atharv-chaudhary-242113/KEPL-opstools.git
 If you are actively developing the tool, clone the repository and install it in editable mode so your changes reflect instantly:
 
 ```bash
-git clone [https://github.com/atharv-chaudhary-242113/KEPL-opstools.git](https://github.com/atharv-chaudhary-242113/KEPL-opstools.git)
+git clone https://github.com/atharv-chaudhary-242113/KEPL-opstools.git
 cd KEPL-opstools
 uv pip install -e .
 
@@ -55,14 +57,23 @@ bom
 
 Splits a master BoM file into individual panel worksheets based on column detection.
 
+* Process all workbooks in the default `input/` directory:
+
 ```bash
-# Process all workbooks in the default 'input/' directory
 bom --split
 
-# Target a specific file or folder
+```
+
+* Target a specific file or folder:
+
+```bash
 bom --split "path/to/your/master_bom.xlsx"
 
-# Force splitting of sub-categories (e.g. -1, -2, -A)
+```
+
+* Force splitting of sub-categories (e.g. -1, -2, -A):
+
+```bash
 bom --split "path/to/your/master_bom.xlsx" --split-sub
 
 ```
@@ -71,27 +82,32 @@ bom --split "path/to/your/master_bom.xlsx" --split-sub
 
 Ingests multiple individual Excel files or sheets and consolidates them into a single `final_bom.xlsx` output with a dynamically mapped `CATEGORY` column.
 
+* Process all workbooks in the default `input/` directory:
+
 ```bash
-# Process all workbooks in the default 'input/' directory
 bom --merge
 
-# Target a specific file or folder
+```
+
+* Target a specific file or folder:
+
+```bash
 bom --merge "C:/path/to/panel/files/"
 
 ```
 
 ---
 
-## 🛠️ Development & Architecture
+## Development & Architecture
 
 ### Core Stack
 
 * **Language**: Python 3.12+
-* **Package Manager**: [uv](https://github.com/astral-sh/uv)
+* **Package Manager**: `uv`
 * **Build Backend**: Hatchling
-* **Type Checker**: [Pyrefly](https://github.com/facebook/pyrefly) (Strict Mode)
-* **Linter/Formatter**: [Ruff](https://github.com/astral-sh/ruff)
-* **Core Libraries**: `openpyxl`, `lxml`
+* **Type Checker**: Pyrefly (Strict Mode)
+* **Linter/Formatter**: Ruff
+* **Core Libraries**: `openpyxl`, `lxml`, `pandas`, `numpy`, `defusedxml`
 
 ### Repository Structure
 
@@ -110,15 +126,20 @@ kepl_opstools/
 
 Before pushing new code, ensure the codebase maintains its strict quality standards:
 
+* Run the linter:
+
 ```bash
-# Run the lightning-fast linter
 uv run ruff check .
 
-# Run the strict-mode type checker
+```
+
+* Run the strict-mode type checker:
+
+```bash
 uv run pyrefly check
 
 ```
 
 ---
 
-*Built for robust data operations. The `inventory-forecast` pipeline is currently under active development and will be integrated into this namespace soon.*
+*Note: The `inventory-forecast` pipeline is currently under active development and will be integrated into this namespace soon.*
