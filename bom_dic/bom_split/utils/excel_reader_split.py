@@ -68,8 +68,7 @@ def _copy_sheet_across(ws_src: Worksheet, wb_dest: openpyxl.Workbook) -> None:
 
 
 def process_workbooks(
-        file_paths: list[Path],
-        split_sub: bool, logger: logging.Logger
+    file_paths: list[Path], split_sub: bool, logger: logging.Logger
 ) -> bool:
     wb_out = openpyxl.Workbook()
     # Remove the default 'Sheet' created upon instantiation
@@ -93,17 +92,23 @@ def process_workbooks(
             ws = wb[sheet_name]
             logger.info(f"Targeting matrix: {sheet_name}")
 
-            panel_cols, all_panel_cols, header_map = detect_columns(ws, split_sub, logger)
+            panel_cols, all_panel_cols, header_map = detect_columns(
+                ws, split_sub, logger
+            )  # noqa: E501
 
             if not panel_cols:
                 logger.warning(f"No series detected in {sheet_name}.")
-                all_exceptions.append({
-                    "sheet": f"{file_path.name} - {sheet_name}",
-                    "issue": "Series Void",
-                    "description": "Row boundary scan returned no valid nomenclature."
-                })
+                all_exceptions.append(
+                    {
+                        "sheet": f"{file_path.name} - {sheet_name}",
+                        "issue": "Series Void",
+                        "description": "Row boundary scan returned no valid nomenclature.",  # noqa: E501
+                    }
+                )
             else:
-                count = classify_panels(wb, ws, panel_cols, all_panel_cols, header_map, logger)
+                count: int = classify_panels(
+                    wb, ws, panel_cols, all_panel_cols, header_map, logger
+                )
                 total_panels_created += count
 
             del wb[sheet_name]

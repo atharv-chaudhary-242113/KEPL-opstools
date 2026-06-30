@@ -271,7 +271,9 @@ def safety_check(
                 total += float(v) if v is not None and v != "" else 0.0
         return total
 
-    all_source_rows: list[dict[str, Any]]= [r for s in sheets_data for r in s["data_rows"]]
+    all_source_rows: list[dict[str, Any]] = [
+        r for s in sheets_data for r in s["data_rows"]
+    ]  # noqa: E501
 
     qty_ok = True
     for panel_name in source_panels:

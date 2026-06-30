@@ -1,7 +1,7 @@
 """
 Isolates classification logic and boundary detection.
 Implements custom formula hypervisor enforcing intra-row recalculations,
-headless column pruning, trailing summary truncation, strict AMT calculations,
+headless column pruning, strict AMT calculations via Price Groups,
 and contiguous serial re-indexing.
 """
 
@@ -13,6 +13,9 @@ from bom_dic.bom_split.config_split import (
     HEADER_ROW,
     PANEL_ROW,
     PANEL_START_COL,
+    PRICE_AMT,
+    PRICE_GROUPS,
+    PRICE_RATE,
 )
 from openpyxl.cell.cell import Cell
 from openpyxl.utils import column_index_from_string, get_column_letter
@@ -22,14 +25,12 @@ from openpyxl.worksheet.worksheet import Worksheet
 
 
 def _is_empty(val: object) -> bool:
-    """Evaluates if a cell value constitutes an empty or null equivalent state."""
     if val is None:
         return True
     return str(val).strip().upper() in ("", "0", "0.0", "NONE", "NULL", "-")
 
 
 def _is_numeric(val: object) -> bool:
-    """Evaluates if a cell value is strictly numerical."""
     if val is None:
         return False
     if isinstance(val, (int, float)):
@@ -42,40 +43,11 @@ def _is_numeric(val: object) -> bool:
 
 
 def _sanitize_sheet_title(title: str) -> str:
-    """Strips Excel-forbidden characters and enforces the 31-character limit."""
     safe_title = re.sub(r"[\\/*?:\[\]]", "_", title)
     return safe_title[:31]
 
 
-def _truncate_trailing_summary(ws: Worksheet, desc_col: int, cat_col: int) -> None:
-    """
-    Severs trailing summary tables to eliminate circular references.
-    Halts and truncates the matrix when two consecutive rows
-    lack both DESCRIPTION and CAT NO.
-    """
-    consecutive_blanks = 0
-    cutoff_row = -1
-
-    for r in range(HEADER_ROW + 1, ws.max_row + 1):
-        desc_val = ws.cell(row=r, column=desc_col).value
-        cat_val = ws.cell(row=r, column=cat_col).value
-
-        if _is_empty(desc_val) and _is_empty(cat_val):
-            consecutive_blanks += 1
-            if consecutive_blanks == 2:
-                cutoff_row = r - 1
-                break
-        else:
-            consecutive_blanks = 0
-
-    if cutoff_row != -1:
-        rows_to_delete = ws.max_row - cutoff_row + 1
-        if rows_to_delete > 0:
-            ws.delete_rows(cutoff_row, rows_to_delete)
-
-
 def _get_shifted_merges(ws: Worksheet, cols_to_delete: list[int]) -> list[CellRange]:
-    """Calculates the exact new position for merged cells ignoring openpyxl bugs."""
     new_ranges = []
     for mr in list(ws.merged_cells.ranges):
         shift_min = sum(1 for c in cols_to_delete if c < mr.min_col)
@@ -96,11 +68,6 @@ def _get_shifted_merges(ws: Worksheet, cols_to_delete: list[int]) -> list[CellRa
 
 
 def _shift_formulas_and_unhide(ws: Worksheet, cols_to_delete: list[int]) -> None:
-    """
-    Safely un-hides formulas, applies absolute column translation mapping,
-    and enforces strict intra-row recalculations by anchoring
-    row numbers to the current row.
-    """
     shift_map = {}
     for col_idx in range(1, 2000):
         shift = sum(1 for c in cols_to_delete if c < col_idx)
@@ -144,35 +111,60 @@ def _shift_formulas_and_unhide(ws: Worksheet, cols_to_delete: list[int]) -> None
 
 def _fix_amt_formulas(ws: Worksheet) -> None:
     """
-    Dynamically overwrites 'AMT' formulas to mandate the multiplication of
-    the immediate left column by Column F (QTY).
+    Dynamically maps PRICE_RATE * QTY into PRICE_AMT cells.
+    Safeguards footer rows from being overridden by zero-value formulas,
+    and skips formula calculation entirely if the PRICE_RATE is empty.
     """
-    amt_cols = []
+    # 1. Locate the surviving QTY column
+    qty_col = None
     for c in range(1, ws.max_column + 1):
-        if str(ws.cell(row=HEADER_ROW, column=c).value or "").strip().upper() == "AMT":
-            amt_cols.append(c)
+        if str(ws.cell(row=HEADER_ROW, column=c).value or "").strip().upper() == "QTY":
+            qty_col = c
+            break
 
-    if not amt_cols:
+    if not qty_col:
         return
 
+    qty_col_letter = get_column_letter(qty_col)
+
+    # 2. Locate and Pair up Rate / Amt Columns dynamically based on Config
+    rate_cols = []
+    amt_cols = []
+    for c in range(1, ws.max_column + 1):
+        header = str(ws.cell(row=HEADER_ROW, column=c).value or "").strip().upper()
+        if header == PRICE_RATE.upper():
+            rate_cols.append(c)
+        elif header == PRICE_AMT.upper():
+            amt_cols.append(c)
+
+    pairs = []
+    for amt_c in amt_cols:
+        left_rates = [rc for rc in rate_cols if rc < amt_c]
+        if left_rates:
+            pairs.append((left_rates[-1], amt_c))
+        else:
+            pairs.append((amt_c - 1, amt_c))
+
+    # 3. Apply the specific PRICE_RATE * QTY formula
     for r in range(HEADER_ROW + 1, ws.max_row + 1):
-        qty_val = ws.cell(row=r, column=6).value
+        qty_val = ws.cell(row=r, column=qty_col).value
+        sno_val = ws.cell(row=r, column=1).value
 
-        if not _is_empty(qty_val):
-            for c in amt_cols:
-                left_col_letter = get_column_letter(c - 1)
-                target_cell = ws.cell(row=r, column=c)
+        # Only overwrite if it is a standard row to protect Footer summary lines
+        if not _is_empty(qty_val) or _is_numeric(sno_val):
+            for rate_c, amt_c in pairs:
+                rate_val = ws.cell(row=r, column=rate_c).value
+                target_cell = ws.cell(row=r, column=amt_c)
 
-                # FIXED: Strict Cell check before assignment
                 if isinstance(target_cell, Cell):
-                    target_cell.value = f"={left_col_letter}{r}*F{r}"
+                    if _is_empty(rate_val):
+                        target_cell.value = None
+                    else:
+                        rate_col_letter = get_column_letter(rate_c)
+                        target_cell.value = f"={rate_col_letter}{r}*{qty_col_letter}{r}"
 
 
 def _clear_headless_columns(ws: Worksheet) -> None:
-    """
-    Scans the first 5 rows of each column. If no label exists,
-    the entire column is systematically cleared of data.
-    """
     for c in range(1, ws.max_column + 1):
         has_header = False
         for r in range(1, 6):
@@ -183,20 +175,14 @@ def _clear_headless_columns(ws: Worksheet) -> None:
         if not has_header:
             for r in range(1, ws.max_row + 1):
                 target_cell = ws.cell(row=r, column=c)
-                # FIXED: Strict Cell check before assignment
                 if isinstance(target_cell, Cell):
                     target_cell.value = None
 
 
 def _reindex_serial_numbers(ws: Worksheet, sno_col: int) -> None:
-    """
-    Enforces contiguous sequential numbering for active data rows post-pruning.
-    Overrides existing numerical entries to ensure logical output structure.
-    """
     current_sno = 1
     for r in range(HEADER_ROW + 1, ws.max_row + 1):
         target_cell = ws.cell(row=r, column=sno_col)
-        # FIXED: Strict Cell check before accessing/assignment
         if not isinstance(target_cell, Cell):
             continue
 
@@ -222,9 +208,7 @@ def detect_columns(
             break
 
     if end_col == -1:
-        logger.warning(
-            f"Boundary marker '{END_MARKER}' not found. Scanning to max boundary."
-        )
+        logger.warning(f"Boundary marker '{END_MARKER}' not found. Scanning to max.")
         end_col = ws.max_column + 1
 
     for col in range(PANEL_START_COL, end_col):
@@ -232,10 +216,7 @@ def detect_columns(
         val = str(raw_val or "").strip()
         if val:
             all_panel_cols.append(col)
-
-            # This is the logic hook for --split-sub
             prefix = val if split_sub else val.split("-")[0].strip()
-
             if prefix not in panel_cols:
                 panel_cols[prefix] = []
             panel_cols[prefix].append(col)
@@ -246,6 +227,7 @@ def detect_columns(
             header_map[str(val).strip().upper()] = col
 
     return panel_cols, all_panel_cols, header_map
+
 
 def classify_panels(
     wb: Workbook,
@@ -266,8 +248,6 @@ def classify_panels(
         ws_new: Worksheet = wb.copy_worksheet(ws)
         ws_new.title = _sanitize_sheet_title(prefix)
 
-        _truncate_trailing_summary(ws_new, desc_col, cat_col)
-
         data_rows_to_delete: set[int] = set()
 
         for r in range(HEADER_ROW + 1, ws_new.max_row + 1):
@@ -275,26 +255,54 @@ def classify_panels(
             cat_val = ws_new.cell(row=r, column=cat_col).value
 
             is_data_row = _is_numeric(sno_val) or not _is_empty(cat_val)
+
+            has_prefix_qty = any(
+                not _is_empty(ws_new.cell(row=r, column=c).value)
+                and ws_new.cell(row=r, column=c).value != 0
+                for c in prefix_panel_cols
+            )
+
             if is_data_row:
-                has_prefix_qty = any(
-                    not _is_empty(ws_new.cell(row=r, column=c).value)
-                    and ws_new.cell(row=r, column=c).value != 0
-                    for c in prefix_panel_cols
-                )
                 if not has_prefix_qty:
+                    data_rows_to_delete.add(r)
+            else:
+                has_label = not _is_empty(ws_new.cell(row=r, column=desc_col).value)
+                if not has_prefix_qty and not has_label:
                     data_rows_to_delete.add(r)
 
         rows_to_delete: list[int] = sorted(data_rows_to_delete, reverse=True)
         for r in rows_to_delete:
             ws_new.delete_rows(r)
 
+        protected_cols = set()
+        for c in range(1, ws_new.max_column + 1):
+            v1 = str(ws_new.cell(row=1, column=c).value or "").strip().upper()
+            v2 = str(ws_new.cell(row=PANEL_ROW, column=c).value or "").strip().upper()
+            v3 = str(ws_new.cell(row=HEADER_ROW, column=c).value or "").strip().upper()
+
+            is_protected = False
+            if v3 in (PRICE_RATE.upper(), PRICE_AMT.upper()):
+                is_protected = True
+
+            for pg in PRICE_GROUPS:
+                if pg.upper() in v1 or pg.upper() in v2:
+                    is_protected = True
+                    break
+
+            if is_protected:
+                protected_cols.add(c)
+
         cols_to_delete: list[int] = sorted(
-            [c for c in all_panel_cols if c not in prefix_panel_cols], reverse=True
+            [
+                c
+                for c in all_panel_cols
+                if c not in prefix_panel_cols and c not in protected_cols
+            ],
+            reverse=True,
         )
 
         for row in ws_new.iter_rows():
             for cell in row:
-                # FIXED: explicit MergedCell avoidance
                 if not isinstance(cell, Cell):
                     continue
 
@@ -308,6 +316,34 @@ def classify_panels(
         for c in cols_to_delete:
             ws_new.delete_cols(c)
 
+        target_qty_col = 6
+        if prefix_panel_cols:
+            first_panel_col = prefix_panel_cols[0]
+            shift = sum(1 for c in cols_to_delete if c < first_panel_col)
+            target_qty_col = first_panel_col - shift
+
+        actual_desc_col = desc_col - sum(1 for c in cols_to_delete if c < desc_col)
+        actual_sno_col = sno_col - sum(1 for c in cols_to_delete if c < sno_col)
+        actual_cat_col = cat_col - sum(1 for c in cols_to_delete if c < cat_col)
+
+        for r in range(HEADER_ROW + 1, ws_new.max_row + 1):
+            sno_val = ws_new.cell(row=r, column=actual_sno_col).value
+            cat_val = ws_new.cell(row=r, column=actual_cat_col).value
+
+            is_data_row = _is_numeric(sno_val) or not _is_empty(cat_val)
+            if not is_data_row:
+                label_cell = ws_new.cell(row=r, column=actual_desc_col)
+                label_val = label_cell.value
+
+                if label_val is not None and str(label_val).strip() != "" and actual_desc_col != target_qty_col - 1:  # noqa: E501
+                    target_label_cell = ws_new.cell(
+                        row=r, column=target_qty_col - 1
+                    )
+                    if isinstance(target_label_cell, Cell):
+                        target_label_cell.value = label_val
+                    if isinstance(label_cell, Cell):
+                        label_cell.value = None
+
         _shift_formulas_and_unhide(ws_new, cols_to_delete)
 
         _fix_amt_formulas(ws_new)
@@ -317,8 +353,6 @@ def classify_panels(
 
         _clear_headless_columns(ws_new)
 
-        # Shift target sno column index if preceding columns were deleted
-        actual_sno_col = sno_col - sum(1 for c in cols_to_delete if c < sno_col)
         _reindex_serial_numbers(ws_new, actual_sno_col)
 
         sheets_created += 1
