@@ -1,117 +1,124 @@
 # KEPL OpsTools
 
-KEPL OpsTools is a unified toolkit designed to automate and simplify how we handle Bill of Materials (BoM) and panel schedules. Transitioning from standalone scripts into this scalable package significantly reduces technical debt and makes the tools much easier for the company to adopt.
+A unified, high-performance, and type-safe Python CLI package for engineering operations. `kepl_opstools` streamlines the processing, splitting, and consolidation of complex Bill of Materials (BoM) Excel workbooks into single, cleanly formatted outputs.
 
-* **Purpose:** This is a single, consolidated repository for the operational tools built for the company.
+Built with modern enterprise-grade Python tooling to ensure speed, stability, and ease of use.
 
+## Features
 
-* **Data Consolidation:** It features an automated Python pipeline designed to extract, clean, and consolidate BoM data spread across multiple Excel worksheets.
-
-
-* **Data Classification:** It includes a Python-based utility designed to parse master BoMs or panel schedules in Excel format.
-
-
-* **Format Preservation:** The classifier categorizes panel series into individual worksheets while strictly preserving existing structural elements, static columns, formulas, and formatting.
-
-
-* **Centralized Access:** Combining the BoM Consolidator and Panel Classifier under the kepl_opstools namespace creates a streamlined, highly accessible workspace.
-
+* **Unified Architecture**: Consolidates the BoM Splitter (Panel Classifier) and BoM Merger (Consolidator) into a single, cohesive toolset.
+* **Professional CLI**: Run complex data pipelines instantly using standard terminal flags (`--split`, `--merge`), or fall back to an interactive wizard.
+* **Enterprise Type Safety**: Powered by Meta's **Pyrefly** (Strict Mode) to guarantee zero implicit `Any` types and robust, crash-free data parsing.
+* **Blazing Fast**: Managed entirely via **uv** and built on **Hatchling** for instant dependency resolution and millisecond build times.
+* **Smart Excel Parsing**: Dynamically detects column headers, bypasses `MergedCell` reading errors, and standardizes numeric types directly from OpenPyXL.
 
 ---
 
-## What Does It Do?
+## Installation
 
-This package currently features two main operations that can be run independently or together:
+Because this repository uses `pyproject.toml` and modern build tools, you can install the CLI command globally in your virtual environment.
 
-### 1. BoM Merge (Consolidator)
+### Option 1: Direct Cloud Install (For End-Users)
+Users with access to the GitHub repository can install the tool directly without downloading the source code manually:
+```bash
+uv pip install git+[https://github.com/your-username/kepl_opstools.git](https://github.com/your-username/kepl_opstools.git)
 
-* **Functionality:** This tool scans standard BoM templates, dynamically identifies target panels and item categories, merges duplicate components based on Catalog Numbers or Descriptions, aggregates their quantities, and exports a unified master BoM along with an exception log.
+```
 
+### Option 2: Local Editable Install (For Developers)
 
-### 2. BoM Split (Panel Classifier)
+If you are actively developing the tool, clone the repository and install it in editable mode so your changes reflect instantly:
 
-* **Functionality:** It consolidates and categorizes panel series into individual worksheets while strictly preserving existing structural elements, static columns, formulas, and formatting.
+```bash
+git clone [https://github.com/your-username/kepl_opstools.git](https://github.com/your-username/kepl_opstools.git)
+cd kepl_opstools
+uv pip install -e .
 
-* **Dynamic Series Detection:** Automatically identifies panel columns starting from Column F (Row 1) up to the explicit "EXISTING COST" boundary marker.
-
-* **Structural Integrity Retention:** Preserves all master formulas, cell colors (e.g., green panel headers), and static category rows (Rows 1–4).
-
-* **Automated Row/Column Pruning:** Deletes rows with zero or null values for the active panel series and strips unrelated panel columns without mutating the source schema.
-
-* **Output Generation:** Generates `classified_panels.xlsx`, `exceptions.xlsx`, and `run_log.log`.
-
----
-
-## Getting Started
-
-Follow these steps to set up the environment on your machine.
-
-### Step 1: Install Python
-
-* Ensure you have Python 3.12 or higher installed.
-
-* You can download it from python.org.
-
-### Step 2: Set Up Your Virtual Environment
-
-A virtual environment keeps the tool's dependencies safely isolated from the rest of your computer. You can use standard pip or the lightning-fast uv package manager.
-
-**Option A: Standard Setup (Using pip)**
-
-1. Create the virtual environment:
-* Windows: `python -m venv venv`.
-* Mac/Linux: `python3 -m venv venv`.
-
-
-2. Activate the environment:
-* Windows: `venv\Scripts\activate`.
-* Mac/Linux: `source venv/bin/activate`.
-
-3. Install the required packages:
-* `pip install -r requirements.txt`.
-
-
-**Option B: Fast Setup (Using uv)**
-If you have uv installed, setting up is practically instant.
-
-1. Create the virtual environment:
-* `uv venv`.
-
-
-2. Activate the environment:
-* Windows: `venv\Scripts\activate`.
-
-* Mac/Linux: `source venv/bin/activate`.
-
-
-3. Install the required packages:
-* `uv pip install -r requirements.txt`.
-
-
+```
 
 ---
 
-## How to Use the Tool
+## Usage
 
-Once your environment is set up and activated, you use a single command line interface (`bom.py`) to run either tool. Neither `--split` nor `--merge` is a required command but they can be used together.
+Installing the package automatically binds the `bom` command to your terminal.
 
-To execute the commands, simply open your terminal and run the following, replacing the path placeholders with your actual file paths:
+### 1. Interactive Mode
 
-`python bom.py --split "path/to/the/file" --merge "path/to/the/file"`.
+If you run the command with no arguments, it will launch a user-friendly terminal wizard.
+
+```bash
+bom
+
+```
+
+### 2. BoM Splitter (Panel Classifier)
+
+Splits a master BoM file into individual panel worksheets based on column detection.
+
+```bash
+# Process all workbooks in the default 'input/' directory
+bom --split
+
+# Target a specific file or folder
+bom --split "path/to/your/master_bom.xlsx"
+
+# Force splitting of sub-categories (e.g. -1, -2, -A)
+bom --split "path/to/your/master_bom.xlsx" --split-sub
+
+```
+
+### 3. BoM Merger (Consolidator)
+
+Ingests multiple individual Excel files or sheets and consolidates them into a single `final_bom.xlsx` output with a dynamically mapped `CATEGORY` column.
+
+```bash
+# Process all workbooks in the default 'input/' directory
+bom --merge
+
+# Target a specific file or folder
+bom --merge "C:/path/to/panel/files/"
+
+```
 
 ---
 
-## Customization
+## 🛠️ Development & Architecture
 
-If your input Excel files have a different layout, you don't need to rewrite the code. You can simply adjust the variables in `config.py` to match your spreadsheet's structure. Open the configuration file in a text editor and modify the following sections based on your data:
+### Core Stack
 
-* **PANEL_ROW = 1:** Change this if the names of your panels (e.g., "Main Board", "Sub Panel A") are not in Row 1.
+* **Language**: Python 3.12+
+* **Package Manager**: [uv](https://github.com/astral-sh/uv)
+* **Build Backend**: Hatchling
+* **Type Checker**: [Pyrefly](https://github.com/facebook/pyrefly) (Strict Mode)
+* **Linter/Formatter**: [Ruff](https://github.com/astral-sh/ruff)
+* **Core Libraries**: `openpyxl`, `lxml`
 
+### Repository Structure
 
-* **HEADER_ROW = 4:** Change this if the static column headers (like SNo, DESCRIPTION, MAKE) are located on a different row.
+```text
+kepl_opstools/
+├── bom_dic/                 # Core source code
+│   ├── bom.py               # Central CLI router (argparse)
+│   ├── bom_merge/           # Consolidator logic
+│   └── bom_split/           # Panel Classifier logic
+├── pyproject.toml           # Modernized dependency & tool config
+└── README.md
 
+```
 
-* **PANEL_START_COL = 7:** Change this if your panel quantities don't start at Column G (which is the 7th letter of the alphabet).
+### Running Checks
 
+Before pushing new code, ensure the codebase maintains its strict quality standards:
 
-* **STATIC_COLS = ["SNo", "DESCRIPTION", "SPEC", "MAKE", "UNIT", "CAT NO."]:** Change this if your input columns have slightly different names.
+```bash
+# Run the lightning-fast linter
+uv run ruff check .
+
+# Run the strict-mode type checker
+uv run pyrefly check
+
+```
+
+---
+
+*Built for robust data operations. The `inventory-forecast` pipeline is currently under active development and will be integrated into this namespace soon.*
