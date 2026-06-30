@@ -14,14 +14,14 @@ Built with modern enterprise-grade Python tooling to ensure speed, stability, an
 
 ---
 
-## Installation
+## 🚀 Installation
 
 Because this repository uses `pyproject.toml` and modern build tools, you can install the CLI command globally in your virtual environment.
 
 ### Option 1: Direct Cloud Install (For End-Users)
 Users with access to the GitHub repository can install the tool directly without downloading the source code manually:
 ```bash
-uv pip install git+[https://github.com/your-username/kepl_opstools.git](https://github.com/your-username/kepl_opstools.git)
+uv pip install git+[https://github.com/atharv-chaudhary-242113/KEPL-opstools.git](https://github.com/atharv-chaudhary-242113/KEPL-opstools.git)
 
 ```
 
@@ -30,8 +30,8 @@ uv pip install git+[https://github.com/your-username/kepl_opstools.git](https://
 If you are actively developing the tool, clone the repository and install it in editable mode so your changes reflect instantly:
 
 ```bash
-git clone [https://github.com/your-username/kepl_opstools.git](https://github.com/your-username/kepl_opstools.git)
-cd kepl_opstools
+git clone [https://github.com/atharv-chaudhary-242113/KEPL-opstools.git](https://github.com/atharv-chaudhary-242113/KEPL-opstools.git)
+cd KEPL-opstools
 uv pip install -e .
 
 ```
