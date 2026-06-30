@@ -216,3 +216,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Confidential data
+bom_dic/*/input
+bom_dic/*/output
+bom_dic/*/logs
