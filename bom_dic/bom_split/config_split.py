@@ -24,7 +24,9 @@ PANEL_START_COL: int = 6  # F Column mapping
 END_MARKER: str = "RATE"
 
 # Price and Formula Configuration
-PRICE_GROUPS: tuple[str, ...] = ("RATE",)
+PRICE_GROUPS: tuple[str, ...] = (
+    "RATE",
+)
 PRICE_RATE: str = "U/R"
 PRICE_AMT: str = "AMT"
 
